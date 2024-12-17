@@ -603,6 +603,15 @@ impl Default for AacConfig {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct OpusConfig {}
+
+impl Default for OpusConfig {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct TtxtConfig {}
 

@@ -25,6 +25,9 @@ pub struct StsdBox {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tx3g: Option<Tx3gBox>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opus: Option<Mp4aBox>,
 }
 
 impl StsdBox {
@@ -44,6 +47,8 @@ impl StsdBox {
             size += mp4a.box_size();
         } else if let Some(ref tx3g) = self.tx3g {
             size += tx3g.box_size();
+        } else if let Some(ref opus) = self.opus {
+            size += opus.box_size();
         }
         size
     }
@@ -70,17 +75,19 @@ impl Mp4Box for StsdBox {
 
 impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
     fn read_box(reader: &mut R, size: u64) -> Result<Self> {
+        println!("[TESTDEBUG] read stsd box");
         let start = box_start(reader)?;
 
         let (version, flags) = read_box_header_ext(reader)?;
 
-        reader.read_u32::<BigEndian>()?; // XXX entry_count
+        let _entry_count = reader.read_u32::<BigEndian>()?; // XXX entry_count
 
         let mut avc1 = None;
         let mut hev1 = None;
         let mut vp09 = None;
         let mut mp4a = None;
         let mut tx3g = None;
+        let mut opus = None;
 
         // Get box header.
         let header = BoxHeader::read(reader)?;
@@ -90,6 +97,8 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
                 "stsd box contains a box with a larger size than it",
             ));
         }
+
+        println!("[TESTDEBUG] read stsd box name: {:?}", name);
 
         match name {
             BoxType::Avc1Box => {
@@ -107,6 +116,9 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
             BoxType::Tx3gBox => {
                 tx3g = Some(Tx3gBox::read_box(reader, s)?);
             }
+            BoxType::OpusBox => {
+                opus = Some(Mp4aBox::read_box(reader, s)?);
+            }
             _ => {}
         }
 
@@ -120,6 +132,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
             vp09,
             mp4a,
             tx3g,
+            opus,
         })
     }
 }
@@ -143,6 +156,8 @@ impl<W: Write> WriteBox<&mut W> for StsdBox {
             mp4a.write_box(writer)?;
         } else if let Some(ref tx3g) = self.tx3g {
             tx3g.write_box(writer)?;
+        } else if let Some(ref opus) = self.opus {
+            opus.write_box(writer)?;
         }
 
         Ok(size)

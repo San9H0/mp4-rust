@@ -13,6 +13,7 @@ pub struct Mp4aBox {
     #[serde(with = "value_u32")]
     pub samplerate: FixedPointU16,
     pub esds: Option<EsdsBox>,
+    pub dops: Option<OpusSpecificBox>,
 }
 
 impl Default for Mp4aBox {
@@ -23,6 +24,7 @@ impl Default for Mp4aBox {
             samplesize: 16,
             samplerate: FixedPointU16::new(48000),
             esds: Some(EsdsBox::default()),
+            dops: None,
         }
     }
 }
@@ -35,6 +37,7 @@ impl Mp4aBox {
             samplesize: 16,
             samplerate: FixedPointU16::new(config.freq_index.freq() as u16),
             esds: Some(EsdsBox::new(config)),
+            dops: None,
         }
     }
 
@@ -82,6 +85,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for Mp4aBox {
         reader.read_u32::<BigEndian>()?; // reserved
         reader.read_u16::<BigEndian>()?; // reserved
         let data_reference_index = reader.read_u16::<BigEndian>()?;
+
         let version = reader.read_u16::<BigEndian>()?;
         reader.read_u16::<BigEndian>()?; // reserved
         reader.read_u32::<BigEndian>()?; // reserved
@@ -98,6 +102,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for Mp4aBox {
 
         // Find esds in mp4a or wave
         let mut esds = None;
+        let mut dops = None;
         let end = start + size;
         loop {
             let current = reader.stream_position()?;
@@ -116,6 +121,9 @@ impl<R: Read + Seek> ReadBox<&mut R> for Mp4aBox {
                 break;
             } else if name == BoxType::WaveBox {
                 // Typically contains frma, mp4a, esds, and a terminator atom
+            } else if name == BoxType::OpusSpecificBox {
+                dops = Some(OpusSpecificBox::read_box(reader, s)?);
+                break;
             } else {
                 // Skip boxes
                 let skip_to = current + s;
@@ -131,6 +139,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for Mp4aBox {
             samplesize,
             samplerate,
             esds,
+            dops,
         })
     }
 }
@@ -155,6 +164,90 @@ impl<W: Write> WriteBox<&mut W> for Mp4aBox {
         }
 
         Ok(size)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+struct ChannelMappingTable {
+    stream_count: u8,
+    coupled_count: u8,
+    channel_mapping: Vec<u8>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+pub struct OpusSpecificBox {
+    pub version: u8,
+    pub output_channel_count: u8,
+    pub pre_skip: u16,
+    pub input_sample_rate: u32,
+    pub outupt_gain: i16,
+    pub channel_mapping_family: u8,
+    pub channel_mapping_table: Option<ChannelMappingTable>,
+}
+
+impl<R: Read + Seek> ReadBox<&mut R> for OpusSpecificBox {
+    fn read_box(reader: &mut R, size: u64) -> Result<Self> {
+        let start = box_start(reader)?;
+
+        let version = reader.read_u8()?;
+        if version != 0 {
+            return Err(Error::InvalidData("opus specific box version is not 0"));
+        }
+
+        let output_channel_count = reader.read_u8()?;
+        let pre_skip = reader.read_u16::<BigEndian>()?;
+        let input_sample_rate = reader.read_u32::<BigEndian>()?;
+        let outupt_gain = reader.read_i16::<BigEndian>()?;
+        let channel_mapping_family = reader.read_u8()?;
+
+        let channel_mapping_table = if channel_mapping_family == 0 {
+            None
+        } else {
+            let stream_count = reader.read_u8()?;
+            let coupled_count = reader.read_u8()?;
+            let channel_mapping = read_buf(reader, output_channel_count.into())?;
+
+            Some(ChannelMappingTable {
+                stream_count,
+                coupled_count,
+                channel_mapping,
+            })
+        };
+
+        Ok(OpusSpecificBox {
+            version,
+            output_channel_count,
+            pre_skip,
+            input_sample_rate,
+            outupt_gain,
+            channel_mapping_family,
+            channel_mapping_table,
+        })
+    }
+}
+
+/// Read size bytes into a Vector or return error.
+fn read_buf<T: Read>(src: &mut T, size: u64) -> Result<Vec<u8>> {
+    let mut buf = Vec::with_capacity(size as usize);
+    let bytes_read = src.take(size).read_to_end(&mut buf)?;
+
+    if bytes_read as u64 != size {
+        return Err(Error::ReadBytesFailed(size));
+    }
+
+    Ok(buf)
+}
+
+impl<W: Write> WriteBox<&mut W> for OpusSpecificBox {
+    fn write_box(&self, writer: &mut W) -> Result<u64> {
+        // let size = self.box_size();
+        // BoxHeader::new(self.box_type(), size).write(writer)?;
+
+        // write_box_header_ext(writer, self.version, self.flags)?;
+
+        // self.es_desc.write_desc(writer)?;
+
+        Ok(0)
     }
 }
 
