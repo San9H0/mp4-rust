@@ -79,14 +79,20 @@ pub use types::*;
 mod mp4box;
 pub use mp4box::*;
 
-mod track;
+pub mod track;
 pub use track::{Mp4Track, TrackConfig};
 
 mod reader;
 pub use reader::Mp4Reader;
 
+mod container;
+pub use container::Mp4Container;
+
 mod writer;
 pub use writer::{Mp4Config, Mp4Writer};
+
+pub mod muxer;
+pub use muxer::Muxer;
 
 pub fn read_mp4(f: File) -> Result<Mp4Reader<BufReader<File>>> {
     let size = f.metadata()?.len();

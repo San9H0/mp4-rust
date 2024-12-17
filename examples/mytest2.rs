@@ -1,0 +1,203 @@
+use std::env;
+use std::fs::File;
+use std::io::prelude::*;
+use std::io::{self, BufReader};
+use std::path::Path;
+
+use mp4::{AvcConfig, FourCC, Mp4Box, Muxer, Result, WriteBox};
+
+fn main() {
+    let args: Vec<String> = env::args().collect();
+
+    if args.len() < 2 {
+        println!("Usage: mp4dump <filename>");
+        std::process::exit(1);
+    }
+
+    if let Err(err) = dump(&args[1]) {
+        let _ = writeln!(io::stderr(), "{}", err);
+    }
+}
+
+fn dump<P: AsRef<Path>>(filename: &P) -> Result<()> {
+    let f = File::open(filename)?;
+
+    let size = f.metadata()?.len();
+    let reader = BufReader::new(f);
+    let mp4: mp4::Mp4Reader<BufReader<File>> = mp4::Mp4Reader::read_header(reader, size)?;
+    let container = mp4.container();
+
+    let mut writer = File::create("output.mp4")?;
+    if let Some(ftyp) = &container.ftyp {
+        let a = ftyp.write_box(&mut writer)?;
+        println!("size: ftyp: {:?}", ftyp);
+    }
+
+    let mut avc1 = None;
+    if let Some(moov) = &container.moov {
+        let b = moov.write_box(&mut writer)?;
+        // println!("moov: {:?}", moov);
+        moov.traks.iter().for_each(|track| {
+            if track.mdia.minf.stbl.stsd.avc1.is_some() {
+                let _avc1 = track.mdia.minf.stbl.stsd.avc1.as_ref().unwrap();
+                avc1 = Some(_avc1);
+                println!("find track: {:?}", avc1);
+            }
+        });
+    }
+    for moof in container.moofs.iter() {
+        let c = moof.write_box(&mut writer)?;
+        println!("size: {}", c);
+    }
+    for emsg in container.emsgs.iter() {
+        let d = emsg.write_box(&mut writer)?;
+        println!("size: {}", d);
+    }
+
+    let mut muxer2 = Muxer::new(
+        FourCC::from(*b"iso5"),
+        512,
+        vec![
+            FourCC::from(*b"iso5"),
+            FourCC::from(*b"iso6"),
+            FourCC::from(*b"mp41"),
+        ],
+    );
+
+    if avc1.is_none() {
+        return Ok(());
+    }
+
+    mp4::track::Mp4TrackWriter::new()
+    let track = mp4::track::Mp4TrackWriter::new(track_id, config)?;
+
+    // let h264 = H264::new(&AvcConfig::default());
+    // muxer.push_track(h264);
+    // let avc_config = AvcConfig {
+    //     width: avc1.unwrap().width,
+    //     height: avc1.unwrap().height,
+    //     seq_param_set: avc1.unwrap().avcc.sequence_parameter_sets,
+    //     pic_param_set: vec![],
+    // };
+    // let h264 = mp4::muxer::H264::new(&avc_config);
+    // muxer2.push_track(h264);
+    // let mut writer = File::create("mymuxer.mp4")?;
+    // muxer2.write_init(&mut writer)?;
+
+    Ok(())
+}
+
+// #[derive(Debug, Clone, PartialEq, Default)]
+// pub struct Box {
+//     name: String,
+//     size: u64,
+//     summary: String,
+//     indent: u32,
+// }
+
+// fn get_boxes(file: File) -> Result<Vec<Box>> {
+//     let size = file.metadata()?.len();
+//     let reader = BufReader::new(file);
+//     let mp4: mp4::Mp4Reader<BufReader<File>> = mp4::Mp4Reader::read_header(reader, size)?;
+
+//     // collect known boxes
+//     let mut boxes = vec![
+//         build_box(&mp4.ftyp),
+//         build_box(&mp4.moov),
+//         build_box(&mp4.moov.mvhd),
+//     ];
+
+//     if let Some(ref mvex) = &mp4.moov.mvex {
+//         boxes.push(build_box(mvex));
+//         if let Some(mehd) = &mvex.mehd {
+//             boxes.push(build_box(mehd));
+//         }
+//         for trex in mvex.trexs.iter() {
+//             boxes.push(build_box(trex));
+//         }
+//     }
+
+//     // trak.
+//     // for track in mp4.tracks().values() {
+//     //     boxes.push(build_box(&track.trak));
+//     //     boxes.push(build_box(&track.trak.tkhd));
+//     //     if let Some(ref edts) = track.trak.edts {
+//     //         boxes.push(build_box(edts));
+//     //         if let Some(ref elst) = edts.elst {
+//     //             boxes.push(build_box(elst));
+//     //         }
+//     //     }
+
+//     //     // trak.mdia
+//     //     let mdia = &track.trak.mdia;
+//     //     boxes.push(build_box(mdia));
+//     //     boxes.push(build_box(&mdia.mdhd));
+//     //     boxes.push(build_box(&mdia.hdlr));
+//     //     boxes.push(build_box(&track.trak.mdia.minf));
+
+//     //     // trak.mdia.minf
+//     //     let minf = &track.trak.mdia.minf;
+//     //     if let Some(ref vmhd) = &minf.vmhd {
+//     //         boxes.push(build_box(vmhd));
+//     //     }
+//     //     if let Some(ref smhd) = &minf.smhd {
+//     //         boxes.push(build_box(smhd));
+//     //     }
+
+//     //     // trak.mdia.minf.stbl
+//     //     let stbl = &track.trak.mdia.minf.stbl;
+//     //     boxes.push(build_box(stbl));
+//     //     boxes.push(build_box(&stbl.stsd));
+//     //     if let Some(ref avc1) = &stbl.stsd.avc1 {
+//     //         boxes.push(build_box(avc1));
+//     //     }
+//     //     if let Some(ref hev1) = &stbl.stsd.hev1 {
+//     //         boxes.push(build_box(hev1));
+//     //     }
+//     //     if let Some(ref mp4a) = &stbl.stsd.mp4a {
+//     //         boxes.push(build_box(mp4a));
+//     //     }
+//     //     if let Some(ref opus) = &stbl.stsd.opus {
+//     //         boxes.push(build_box(opus));
+//     //     }
+//     //     boxes.push(build_box(&stbl.stts));
+//     //     if let Some(ref ctts) = &stbl.ctts {
+//     //         boxes.push(build_box(ctts));
+//     //     }
+//     //     if let Some(ref stss) = &stbl.stss {
+//     //         boxes.push(build_box(stss));
+//     //     }
+//     //     boxes.push(build_box(&stbl.stsc));
+//     //     boxes.push(build_box(&stbl.stsz));
+//     //     if let Some(ref stco) = &stbl.stco {
+//     //         boxes.push(build_box(stco));
+//     //     }
+//     //     if let Some(ref co64) = &stbl.co64 {
+//     //         boxes.push(build_box(co64));
+//     //     }
+//     // }
+
+//     // If fragmented, add moof boxes.
+//     for moof in mp4.moofs.iter() {
+//         boxes.push(build_box(moof));
+//         boxes.push(build_box(&moof.mfhd));
+//         for traf in moof.trafs.iter() {
+//             boxes.push(build_box(traf));
+//             boxes.push(build_box(&traf.tfhd));
+//             if let Some(ref trun) = &traf.trun {
+//                 boxes.push(build_box(trun));
+//             }
+//         }
+//     }
+
+//     Ok(boxes)
+// }
+
+// fn build_box<M: Mp4Box + std::fmt::Debug>(m: &M) -> Box {
+//     Box {
+//         name: m.box_type().to_string(),
+//         size: m.box_size(),
+//         summary: m.summary().unwrap(),
+//         indent: 0,
+//     }
+// }

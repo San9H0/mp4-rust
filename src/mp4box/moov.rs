@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::io::{Read, Seek, Write};
+use std::time::Duration;
 
 use crate::meta::MetaBox;
 use crate::mp4box::*;
@@ -35,10 +36,21 @@ impl MoovBox {
         if let Some(meta) = &self.meta {
             size += meta.box_size();
         }
+        if let Some(mvex) = &self.mvex {
+            size += mvex.get_size();
+        }
         if let Some(udta) = &self.udta {
             size += udta.box_size();
         }
         size
+    }
+
+    pub fn duration(&self) -> Duration {
+        Duration::from_millis(self.mvhd.duration * 1000 / self.mvhd.timescale as u64)
+    }
+
+    pub fn timescale(&self) -> u32 {
+        self.mvhd.timescale
     }
 }
 
@@ -128,19 +140,25 @@ impl<R: Read + Seek> ReadBox<&mut R> for MoovBox {
 impl<W: Write> WriteBox<&mut W> for MoovBox {
     fn write_box(&self, writer: &mut W) -> Result<u64> {
         let size = self.box_size();
-        BoxHeader::new(self.box_type(), size).write(writer)?;
-
-        self.mvhd.write_box(writer)?;
+        let mut written = 0;
+        written += BoxHeader::new(self.box_type(), size).write(writer)?;
+        written += self.mvhd.write_box(writer)?;
         for trak in self.traks.iter() {
-            trak.write_box(writer)?;
+            written += trak.write_box(writer)?;
         }
         if let Some(meta) = &self.meta {
-            meta.write_box(writer)?;
+            written += meta.write_box(writer)?;
+        }
+        if let Some(mvex) = &self.mvex {
+            written += mvex.write_box(writer)?;
         }
         if let Some(udta) = &self.udta {
-            udta.write_box(writer)?;
+            written += udta.write_box(writer)?;
         }
-        Ok(0)
+        if written != size {
+            return Err(Error::InvalidData("moov box size mismatch"));
+        }
+        Ok(written)
     }
 }
 

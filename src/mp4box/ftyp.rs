@@ -19,6 +19,18 @@ impl FtypBox {
     pub fn get_size(&self) -> u64 {
         HEADER_SIZE + 8 + (4 * self.compatible_brands.len() as u64)
     }
+
+    pub fn major_brand(&self) -> &FourCC {
+        &self.major_brand
+    }
+
+    pub fn minor_version(&self) -> u32 {
+        self.minor_version
+    }
+
+    pub fn compatible_brands(&self) -> &[FourCC] {
+        &self.compatible_brands
+    }
 }
 
 impl Mp4Box for FtypBox {

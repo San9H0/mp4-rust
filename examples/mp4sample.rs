@@ -26,25 +26,25 @@ fn samples<P: AsRef<Path>>(filename: &P) -> Result<()> {
 
     let mut mp4 = mp4::Mp4Reader::read_header(reader, size)?;
 
-    for track_id in mp4.tracks().keys().copied().collect::<Vec<u32>>() {
-        let sample_count = mp4.sample_count(track_id).unwrap();
+    // for track_id in mp4.tracks().keys().copied().collect::<Vec<u32>>() {
+    //     let sample_count = mp4.sample_count(track_id).unwrap();
 
-        for sample_idx in 0..sample_count {
-            let sample_id = sample_idx + 1;
-            let sample = mp4.read_sample(track_id, sample_id);
+    //     for sample_idx in 0..sample_count {
+    //         let sample_id = sample_idx + 1;
+    //         let sample = mp4.read_sample(track_id, sample_id);
 
-            if let Some(ref samp) = sample.unwrap() {
-                println!(
-                    "[{}] start_time={} duration={} rendering_offset={} size={} is_sync={}",
-                    sample_id,
-                    samp.start_time,
-                    samp.duration,
-                    samp.rendering_offset,
-                    samp.bytes.len(),
-                    samp.is_sync,
-                );
-            }
-        }
-    }
+    //         if let Some(ref samp) = sample.unwrap() {
+    //             println!(
+    //                 "[{}] start_time={} duration={} rendering_offset={} size={} is_sync={}",
+    //                 sample_id,
+    //                 samp.start_time,
+    //                 samp.duration,
+    //                 samp.rendering_offset,
+    //                 samp.bytes.len(),
+    //                 samp.is_sync,
+    //             );
+    //         }
+    //     }
+    // }
     Ok(())
 }

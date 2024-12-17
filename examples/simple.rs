@@ -12,8 +12,10 @@ fn main() {
     let filename = &args[1];
     let f = File::open(filename).unwrap();
     let mp4 = mp4::read_mp4(f).unwrap();
+    let container = mp4.container();
+    let ftyp = container.ftyp.as_ref().unwrap();
 
-    println!("Major Brand: {}", mp4.major_brand());
+    println!("Major Brand: {}", ftyp.major_brand());
 
     for track in mp4.tracks().values() {
         println!(

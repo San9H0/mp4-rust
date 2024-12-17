@@ -25,12 +25,13 @@ fn info<P: AsRef<Path>>(filename: &P) -> Result<()> {
     let reader = BufReader::new(f);
 
     let mp4 = mp4::Mp4Reader::read_header(reader, size)?;
-
+    let container = mp4.container();
+    let ftyp = mp4.container().ftyp.as_ref().unwrap();
     println!("File:");
     println!("  file size:          {}", mp4.size());
-    println!("  major_brand:        {}", mp4.major_brand());
+    println!("  major_brand:        {}", ftyp.major_brand());
     let mut compatible_brands = String::new();
-    for brand in mp4.compatible_brands().iter() {
+    for brand in ftyp.compatible_brands().iter() {
         compatible_brands.push_str(&brand.to_string());
         compatible_brands.push(' ');
     }
@@ -42,9 +43,10 @@ fn info<P: AsRef<Path>>(filename: &P) -> Result<()> {
         "  creation time:  {}",
         creation_time(mp4.moov.mvhd.creation_time)
     );
-    println!("  duration:       {:?}", mp4.duration());
-    println!("  fragments:      {:?}", mp4.is_fragmented());
-    println!("  timescale:      {:?}\n", mp4.timescale());
+    let moov = mp4.container().moov.as_ref().unwrap();
+    println!("  duration:       {:?}", moov.duration());
+    println!("  fragments:      {:?}", container.is_fragmented());
+    println!("  timescale:      {:?}\n", moov.timescale());
 
     println!("Found {} Tracks", mp4.tracks().len());
     for track in mp4.tracks().values() {

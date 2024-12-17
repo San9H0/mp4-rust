@@ -9,11 +9,14 @@ use std::time::Duration;
 #[test]
 fn test_read_mp4() {
     let mut mp4 = get_reader("tests/samples/minimal.mp4");
+    let container = mp4.container();
+    let ftyp = container.ftyp.as_ref().unwrap();
+    let moov = container.moov.as_ref().unwrap();
 
     assert_eq!(2591, mp4.size());
 
     // ftyp.
-    assert_eq!(4, mp4.compatible_brands().len());
+    assert_eq!(4, ftyp.compatible_brands().len());
 
     // Check compatible_brands.
     let brands = vec![
@@ -24,12 +27,12 @@ fn test_read_mp4() {
     ];
 
     for b in brands {
-        let t = mp4.compatible_brands().iter().any(|x| x.to_string() == b);
+        let t = ftyp.compatible_brands().iter().any(|x| x.to_string() == b);
         assert!(t);
     }
 
-    assert_eq!(mp4.duration(), Duration::from_millis(62));
-    assert_eq!(mp4.timescale(), 1000);
+    assert_eq!(moov.duration(), Duration::from_millis(62));
+    assert_eq!(moov.timescale(), 1000);
     assert_eq!(mp4.tracks().len(), 2);
 
     let sample_count = mp4.sample_count(1).unwrap();
@@ -180,9 +183,11 @@ fn test_read_metadata() {
 #[test]
 fn test_read_fragments() {
     let mp4 = get_reader("tests/samples/minimal_init.mp4");
+    let container = mp4.container();
+    let ftyp = container.ftyp.as_ref().unwrap();
 
     assert_eq!(692, mp4.size());
-    assert_eq!(5, mp4.compatible_brands().len());
+    assert_eq!(5, ftyp.compatible_brands().len());
 
     let sample_count = mp4.sample_count(1).unwrap();
     assert_eq!(sample_count, 0);

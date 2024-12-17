@@ -2,19 +2,21 @@ use std::collections::HashMap;
 use std::io::{Read, Seek};
 use std::time::Duration;
 
+use mdat::MdatBox;
+
 use crate::meta::MetaBox;
 use crate::*;
 
 #[derive(Debug)]
 pub struct Mp4Reader<R> {
     reader: R,
-    pub ftyp: FtypBox,
-    pub moov: MoovBox,
-    pub moofs: Vec<MoofBox>,
-    pub emsgs: Vec<EmsgBox>,
-
-    tracks: HashMap<u32, Mp4Track>,
-    size: u64,
+    pub mp4: Mp4Container,
+    // pub ftyp: FtypBox,
+    // pub moov: MoovBox,
+    // pub moofs: Vec<MoofBox>,
+    // pub emsgs: Vec<EmsgBox>,
+    // tracks: HashMap<u32, Mp4Track>,
+    // size: u64,
 }
 
 impl<R: Read + Seek> Mp4Reader<R> {
@@ -23,6 +25,7 @@ impl<R: Read + Seek> Mp4Reader<R> {
 
         let mut ftyp = None;
         let mut moov = None;
+        let mut mdat = None;
         let mut moofs = Vec::new();
         let mut moof_offsets = Vec::new();
         let mut emsgs = Vec::new();
@@ -43,6 +46,8 @@ impl<R: Read + Seek> Mp4Reader<R> {
                 break;
             }
 
+            println!("name: {:?}, size: {}", name, s);
+
             // Match and parse the atom boxes.
             match name {
                 BoxType::FtypBox => {
@@ -52,7 +57,8 @@ impl<R: Read + Seek> Mp4Reader<R> {
                     skip_box(&mut reader, s)?;
                 }
                 BoxType::MdatBox => {
-                    skip_box(&mut reader, s)?;
+                    println!("mdat box");
+                    mdat = Some(MdatBox::read_box(&mut reader, s)?);
                 }
                 BoxType::MoovBox => {
                     moov = Some(MoovBox::read_box(&mut reader, s)?);
@@ -75,57 +81,63 @@ impl<R: Read + Seek> Mp4Reader<R> {
             current = reader.stream_position()?;
         }
 
-        if ftyp.is_none() {
-            return Err(Error::BoxNotFound(BoxType::FtypBox));
-        }
-        if moov.is_none() {
-            return Err(Error::BoxNotFound(BoxType::MoovBox));
-        }
+        // let size = current - start;
+        // let mut tracks = if let Some(ref moov) = moov {
+        //     if moov.traks.iter().any(|trak| trak.tkhd.track_id == 0) {
+        //         return Err(Error::InvalidData("illegal track id 0"));
+        //     }
+        //     moov.traks
+        //         .iter()
+        //         .map(|trak| (trak.tkhd.track_id, Mp4Track::from(trak)))
+        //         .collect()
+        // } else {
+        //     HashMap::new()
+        // };
 
-        let size = current - start;
-        let mut tracks = if let Some(ref moov) = moov {
-            if moov.traks.iter().any(|trak| trak.tkhd.track_id == 0) {
-                return Err(Error::InvalidData("illegal track id 0"));
-            }
-            moov.traks
-                .iter()
-                .map(|trak| (trak.tkhd.track_id, Mp4Track::from(trak)))
-                .collect()
-        } else {
-            HashMap::new()
-        };
+        // // Update tracks if any fragmented (moof) boxes are found.f
+        // if !moofs.is_empty() {
+        //     for (moof, moof_offset) in moofs.iter().zip(moof_offsets) {
+        //         for traf in moof.trafs.iter() {
+        //             let track_id = traf.tfhd.track_id;
+        //             if let Some(track) = tracks.get_mut(&track_id) {
+        //                 let mut default_sample_duration = 0;
+        //                 if let Some(ref moov) = moov {
+        //                     if let Some(ref mvex) = &moov.mvex {
+        //                         for trex in mvex.trexs.iter() {
+        //                             if trex.track_id == track_id {
+        //                                 default_sample_duration = trex.default_sample_duration;
+        //                                 break;
+        //                             }
+        //                         }
+        //                     }
+        //                 }
 
-        // Update tracks if any fragmented (moof) boxes are found.
-        if !moofs.is_empty() {
-            let mut default_sample_duration = 0;
-            if let Some(ref moov) = moov {
-                if let Some(ref mvex) = &moov.mvex {
-                    default_sample_duration = mvex.trex.default_sample_duration
-                }
-            }
-
-            for (moof, moof_offset) in moofs.iter().zip(moof_offsets) {
-                for traf in moof.trafs.iter() {
-                    let track_id = traf.tfhd.track_id;
-                    if let Some(track) = tracks.get_mut(&track_id) {
-                        track.default_sample_duration = default_sample_duration;
-                        track.moof_offsets.push(moof_offset);
-                        track.trafs.push(traf.clone())
-                    } else {
-                        return Err(Error::TrakNotFound(track_id));
-                    }
-                }
-            }
-        }
+        //                 track.default_sample_duration = default_sample_duration;
+        //                 track.moof_offsets.push(moof_offset);
+        //                 track.trafs.push(traf.clone())
+        //             } else {
+        //                 println!("4 track_id: {}", track_id);
+        //                 return Err(Error::TrakNotFound(track_id));
+        //             }
+        //         }
+        //     }
+        // }
 
         Ok(Mp4Reader {
             reader,
-            ftyp: ftyp.unwrap(),
-            moov: moov.unwrap(),
-            moofs,
-            emsgs,
-            size,
-            tracks,
+            mp4: Mp4Container {
+                ftyp,
+                moov,
+                moofs,
+                emsgs,
+                mdat,
+            },
+            // ftyp: ftyp.unwrap(),
+            // moov: moov.unwrap(),
+            // moofs,
+            // emsgs,
+            // size,
+            // tracks,
         })
     }
 
@@ -136,6 +148,7 @@ impl<R: Read + Seek> Mp4Reader<R> {
     ) -> Result<Mp4Reader<FR>> {
         let start = reader.stream_position()?;
 
+        let mut mdat = None;
         let mut moofs = Vec::new();
         let mut moof_offsets = Vec::new();
 
@@ -158,7 +171,7 @@ impl<R: Read + Seek> Mp4Reader<R> {
             // Match and parse the atom boxes.
             match name {
                 BoxType::MdatBox => {
-                    skip_box(&mut reader, s)?;
+                    mdat = Some(MdatBox::read_box(&mut reader, s)?);
                 }
                 BoxType::MoofBox => {
                     let moof_offset = reader.stream_position()? - 8;
@@ -174,111 +187,116 @@ impl<R: Read + Seek> Mp4Reader<R> {
             current = reader.stream_position()?;
         }
 
-        if moofs.is_empty() {
-            return Err(Error::BoxNotFound(BoxType::MoofBox));
-        }
+        // if moofs.is_empty() {
+        //     return Err(Error::BoxNotFound(BoxType::MoofBox));
+        // }
 
-        let size = current - start;
-        let mut tracks: HashMap<u32, Mp4Track> = self
-            .moov
-            .traks
-            .iter()
-            .map(|trak| (trak.tkhd.track_id, Mp4Track::from(trak)))
-            .collect();
+        // let size = current - start;
 
-        let mut default_sample_duration = 0;
-        if let Some(ref mvex) = &self.moov.mvex {
-            default_sample_duration = mvex.trex.default_sample_duration
-        }
+        // let mut tracks = HashMap::new();
+        // if let Some(ref moov) = self.mp4.moov {
+        //     tracks = self
+        //         .mp4
+        //         .moov
+        //         .as_ref()
+        //         .unwrap()
+        //         .traks
+        //         .iter()
+        //         .map(|trak| (trak.tkhd.track_id, Mp4Track::from(trak)))
+        //         .collect();
+        // }
 
-        for (moof, moof_offset) in moofs.iter().zip(moof_offsets) {
-            for traf in moof.trafs.iter() {
-                let track_id = traf.tfhd.track_id;
-                if let Some(track) = tracks.get_mut(&track_id) {
-                    track.default_sample_duration = default_sample_duration;
-                    track.moof_offsets.push(moof_offset);
-                    track.trafs.push(traf.clone())
-                } else {
-                    return Err(Error::TrakNotFound(track_id));
-                }
-            }
-        }
+        // for (moof, moof_offset) in moofs.iter().zip(moof_offsets) {
+        //     for traf in moof.trafs.iter() {
+        //         let track_id = traf.tfhd.track_id;
+        //         if let Some(track) = tracks.get_mut(&track_id) {
+        //             let mut default_sample_duration = 0;
+        //             if let Some(ref mvex) = &self.mp4.moov.as_ref().unwrap().mvex {
+        //                 for trex in mvex.trexs.iter() {
+        //                     if trex.track_id == track_id {
+        //                         default_sample_duration = trex.default_sample_duration;
+        //                         break;
+        //                     }
+        //                 }
+        //             }
+
+        //             track.default_sample_duration = default_sample_duration;
+        //             track.moof_offsets.push(moof_offset);
+        //             track.trafs.push(traf.clone())
+        //         } else {
+        //             println!("5 track_id: {}", track_id);
+        //             return Err(Error::TrakNotFound(track_id));
+        //         }
+        //     }
+        // }
 
         Ok(Mp4Reader {
             reader,
-            ftyp: self.ftyp.clone(),
-            moov: self.moov.clone(),
-            moofs,
-            emsgs: Vec::new(),
-            tracks,
-            size,
+            mp4: Mp4Container {
+                ftyp: self.mp4.ftyp.clone(),
+                moov: self.mp4.moov.clone(),
+                moofs,
+                emsgs: Vec::new(),
+                mdat,
+            },
+            // tracks,
+            // size,
         })
     }
 
-    pub fn size(&self) -> u64 {
-        self.size
+    // pub fn size(&self) -> u64 {
+    //     self.size
+    // }
+
+    pub fn container(&self) -> &Mp4Container {
+        &self.mp4
     }
 
-    pub fn major_brand(&self) -> &FourCC {
-        &self.ftyp.major_brand
-    }
+    // pub fn tracks(&self) -> &HashMap<u32, Mp4Track> {
+    //     &self.tracks
+    // }
 
-    pub fn minor_version(&self) -> u32 {
-        self.ftyp.minor_version
-    }
+    // pub fn sample_count(&self, track_id: u32) -> Result<u32> {
+    //     if let Some(track) = self.tracks.get(&track_id) {
+    //         Ok(track.sample_count())
+    //     } else {
+    //         println!("1 track_id: {}", track_id);
+    //         Err(Error::TrakNotFound(track_id))
+    //     }
+    // }
 
-    pub fn compatible_brands(&self) -> &[FourCC] {
-        &self.ftyp.compatible_brands
-    }
+    // pub fn read_sample(&mut self, track_id: u32, sample_id: u32) -> Result<Option<Mp4Sample>> {
+    //     if let Some(track) = self.tracks.get(&track_id) {
+    //         track.read_sample(&mut self.reader, sample_id)
+    //     } else {
+    //         println!("2 track_id: {}", track_id);
+    //         Err(Error::TrakNotFound(track_id))
+    //     }
+    // }
 
-    pub fn duration(&self) -> Duration {
-        Duration::from_millis(self.moov.mvhd.duration * 1000 / self.moov.mvhd.timescale as u64)
-    }
-
-    pub fn timescale(&self) -> u32 {
-        self.moov.mvhd.timescale
-    }
-
-    pub fn is_fragmented(&self) -> bool {
-        !self.moofs.is_empty()
-    }
-
-    pub fn tracks(&self) -> &HashMap<u32, Mp4Track> {
-        &self.tracks
-    }
-
-    pub fn sample_count(&self, track_id: u32) -> Result<u32> {
-        if let Some(track) = self.tracks.get(&track_id) {
-            Ok(track.sample_count())
-        } else {
-            Err(Error::TrakNotFound(track_id))
-        }
-    }
-
-    pub fn read_sample(&mut self, track_id: u32, sample_id: u32) -> Result<Option<Mp4Sample>> {
-        if let Some(track) = self.tracks.get(&track_id) {
-            track.read_sample(&mut self.reader, sample_id)
-        } else {
-            Err(Error::TrakNotFound(track_id))
-        }
-    }
-
-    pub fn sample_offset(&mut self, track_id: u32, sample_id: u32) -> Result<u64> {
-        if let Some(track) = self.tracks.get(&track_id) {
-            track.sample_offset(sample_id)
-        } else {
-            Err(Error::TrakNotFound(track_id))
-        }
-    }
+    // pub fn sample_offset(&mut self, track_id: u32, sample_id: u32) -> Result<u64> {
+    //     if let Some(track) = self.tracks.get(&track_id) {
+    //         track.sample_offset(sample_id)
+    //     } else {
+    //         println!("3 track_id: {}", track_id);
+    //         Err(Error::TrakNotFound(track_id))
+    //     }
+    // }
 }
 
 impl<R> Mp4Reader<R> {
     pub fn metadata(&self) -> impl Metadata<'_> {
-        self.moov.udta.as_ref().and_then(|udta| {
-            udta.meta.as_ref().and_then(|meta| match meta {
-                MetaBox::Mdir { ilst } => ilst.as_ref(),
-                _ => None,
+        self.mp4
+            .moov
+            .as_ref()
+            .unwrap()
+            .udta
+            .as_ref()
+            .and_then(|udta| {
+                udta.meta.as_ref().and_then(|meta| match meta {
+                    MetaBox::Mdir { ilst } => ilst.as_ref(),
+                    _ => None,
+                })
             })
-        })
     }
 }

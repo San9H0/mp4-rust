@@ -82,6 +82,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for Mp4aBox {
         reader.read_u32::<BigEndian>()?; // reserved
         reader.read_u16::<BigEndian>()?; // reserved
         let data_reference_index = reader.read_u16::<BigEndian>()?;
+
         let version = reader.read_u16::<BigEndian>()?;
         reader.read_u16::<BigEndian>()?; // reserved
         reader.read_u32::<BigEndian>()?; // reserved
