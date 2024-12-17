@@ -67,6 +67,7 @@ pub(crate) mod co64;
 pub(crate) mod ctts;
 pub(crate) mod data;
 pub(crate) mod dinf;
+pub(crate) mod dops;
 pub(crate) mod edts;
 pub(crate) mod elst;
 pub(crate) mod emsg;
@@ -95,7 +96,8 @@ pub(crate) mod stsz;
 pub(crate) mod stts;
 pub(crate) mod tfdt;
 pub(crate) mod tfhd;
-pub(crate) mod tkhd;
+// pub(crate) mod tkhd;
+pub mod tkhd;
 pub(crate) mod traf;
 pub(crate) mod trak;
 pub(crate) mod trex;
@@ -111,6 +113,7 @@ pub use co64::Co64Box;
 pub use ctts::CttsBox;
 pub use data::DataBox;
 pub use dinf::DinfBox;
+// pub use dops::DopsBox;
 pub use edts::EdtsBox;
 pub use elst::ElstBox;
 pub use emsg::EmsgBox;
@@ -223,6 +226,8 @@ boxtype! {
     UrlBox  => 0x75726C20,
     SmhdBox => 0x736d6864,
     Avc1Box => 0x61766331,
+    OpusBox => 0x4f707573,
+    OpusSpecificBox => 0x644f7073,
     AvcCBox => 0x61766343,
     Hev1Box => 0x68657631,
     HvcCBox => 0x68766343,
