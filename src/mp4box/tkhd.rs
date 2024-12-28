@@ -6,7 +6,7 @@ use crate::mp4box::*;
 
 pub enum TrackFlag {
     TrackEnabled = 0x000001,
-    // TrackInMovie = 0x000002,
+    TrackInMovie = 0x000002,
     // TrackInPreview = 0x000004,
 }
 

@@ -30,6 +30,7 @@ impl From<MediaConfig> for TrackConfig {
             MediaConfig::AacConfig(aac_conf) => Self::from(aac_conf),
             MediaConfig::TtxtConfig(ttxt_conf) => Self::from(ttxt_conf),
             MediaConfig::Vp9Config(vp9_config) => Self::from(vp9_config),
+            MediaConfig::OpusConfig(opus_config) => Self::from(opus_config),
         }
     }
 }
@@ -89,6 +90,17 @@ impl From<Vp9Config> for TrackConfig {
     }
 }
 
+impl From<OpusConfig> for TrackConfig {
+    fn from(opus_conf: OpusConfig) -> Self {
+        Self {
+            track_type: TrackType::Audio,
+            timescale: 1000,               // XXX
+            language: String::from("und"), // XXX
+            media_conf: MediaConfig::OpusConfig(opus_conf),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Mp4Track {
     pub trak: TrakBox,
@@ -129,6 +141,8 @@ impl Mp4Track {
             Ok(MediaType::AAC)
         } else if self.trak.mdia.minf.stbl.stsd.tx3g.is_some() {
             Ok(MediaType::TTXT)
+        } else if self.trak.mdia.minf.stbl.stsd.opus.is_some() {
+            Ok(MediaType::OPUS)
         } else {
             Err(Error::InvalidData("unsupported media type"))
         }
@@ -145,6 +159,8 @@ impl Mp4Track {
             Ok(FourCC::from(BoxType::Mp4aBox))
         } else if self.trak.mdia.minf.stbl.stsd.tx3g.is_some() {
             Ok(FourCC::from(BoxType::Tx3gBox))
+        } else if self.trak.mdia.minf.stbl.stsd.opus.is_some() {
+            Ok(FourCC::from(BoxType::OpusBox))
         } else {
             Err(Error::InvalidData("unsupported sample entry box"))
         }
@@ -644,9 +660,16 @@ impl Mp4TrackWriter {
     pub(crate) fn new(track_id: u32, config: &TrackConfig) -> Result<Self> {
         let mut trak = TrakBox::default();
         trak.tkhd.track_id = track_id;
+        if config.track_type == TrackType::Audio {
+            trak.tkhd.alternate_group = 1; // for audio, alternate_group is 1
+            trak.tkhd.volume = FixedPointU8::new(1);
+        }
         trak.mdia.mdhd.timescale = config.timescale;
         trak.mdia.mdhd.language = config.language.to_owned();
-        trak.mdia.hdlr.handler_type = config.track_type.into();
+        trak.mdia.hdlr = HdlrBox::new(
+            config.track_type.into(),
+            config.track_type.to_handle_name().to_string(),
+        );
         trak.mdia.minf.stbl.co64 = Some(Co64Box::default());
         match config.media_conf {
             MediaConfig::AvcConfig(ref avc_config) => {
@@ -685,6 +708,13 @@ impl Mp4TrackWriter {
             MediaConfig::TtxtConfig(ref _ttxt_config) => {
                 let tx3g = Tx3gBox::default();
                 trak.mdia.minf.stbl.stsd.tx3g = Some(tx3g);
+            }
+            MediaConfig::OpusConfig(ref _opus_config) => {
+                let smhd = SmhdBox::default();
+                trak.mdia.minf.smhd = Some(smhd);
+
+                let opus = OpusBox::default();
+                trak.mdia.minf.stbl.stsd.opus = Some(opus);
             }
         }
         Ok(Mp4TrackWriter {
@@ -841,8 +871,13 @@ impl Mp4TrackWriter {
     }
 
     fn chunk_count(&self) -> u32 {
-        let co64 = self.trak.mdia.minf.stbl.co64.as_ref().unwrap();
-        co64.entries.len() as u32
+        if self.trak.mdia.minf.stbl.co64.is_some() {
+            let co64 = self.trak.mdia.minf.stbl.co64.as_ref().unwrap();
+            co64.entries.len() as u32
+        } else {
+            let stco = self.trak.mdia.minf.stbl.stco.as_ref().unwrap();
+            stco.entries.len() as u32
+        }
     }
 
     fn update_sample_to_chunk(&mut self, chunk_id: u32) {
@@ -862,8 +897,13 @@ impl Mp4TrackWriter {
     }
 
     fn update_chunk_offsets(&mut self, offset: u64) {
-        let co64 = self.trak.mdia.minf.stbl.co64.as_mut().unwrap();
-        co64.entries.push(offset);
+        if self.trak.mdia.minf.stbl.co64.is_some() {
+            let co64 = self.trak.mdia.minf.stbl.co64.as_mut().unwrap();
+            co64.entries.push(offset);
+        } else {
+            let stco = self.trak.mdia.minf.stbl.stco.as_mut().unwrap();
+            stco.entries.push(offset as u32);
+        }
     }
 
     fn write_chunk<W: Write + Seek>(&mut self, writer: &mut W) -> Result<()> {

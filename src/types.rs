@@ -172,6 +172,16 @@ pub enum TrackType {
     Subtitle,
 }
 
+impl TrackType {
+    pub fn to_handle_name(&self) -> &str {
+        match self {
+            TrackType::Video => "VideoHandler",
+            TrackType::Audio => "SoundHandler",
+            TrackType::Subtitle => "TextHandler", // TODO: check
+        }
+    }
+}
+
 impl fmt::Display for TrackType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let s = match self {
@@ -222,6 +232,7 @@ const MEDIA_TYPE_H265: &str = "h265";
 const MEDIA_TYPE_VP9: &str = "vp9";
 const MEDIA_TYPE_AAC: &str = "aac";
 const MEDIA_TYPE_TTXT: &str = "ttxt";
+const MEDIA_TYPE_OPUS: &str = "opus";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MediaType {
@@ -230,6 +241,7 @@ pub enum MediaType {
     VP9,
     AAC,
     TTXT,
+    OPUS,
 }
 
 impl fmt::Display for MediaType {
@@ -248,6 +260,7 @@ impl TryFrom<&str> for MediaType {
             MEDIA_TYPE_VP9 => Ok(MediaType::VP9),
             MEDIA_TYPE_AAC => Ok(MediaType::AAC),
             MEDIA_TYPE_TTXT => Ok(MediaType::TTXT),
+            MEDIA_TYPE_OPUS => Ok(MediaType::OPUS),
             _ => Err(Error::InvalidData("unsupported media type")),
         }
     }
@@ -261,6 +274,7 @@ impl From<MediaType> for &str {
             MediaType::VP9 => MEDIA_TYPE_VP9,
             MediaType::AAC => MEDIA_TYPE_AAC,
             MediaType::TTXT => MEDIA_TYPE_TTXT,
+            MediaType::OPUS => MEDIA_TYPE_OPUS,
         }
     }
 }
@@ -273,6 +287,7 @@ impl From<&MediaType> for &str {
             MediaType::VP9 => MEDIA_TYPE_VP9,
             MediaType::AAC => MEDIA_TYPE_AAC,
             MediaType::TTXT => MEDIA_TYPE_TTXT,
+            MediaType::OPUS => MEDIA_TYPE_OPUS,
         }
     }
 }
@@ -606,6 +621,9 @@ impl Default for AacConfig {
 #[derive(Debug, PartialEq, Eq, Clone, Default)]
 pub struct TtxtConfig {}
 
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+pub struct OpusConfig {}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum MediaConfig {
     AvcConfig(AvcConfig),
@@ -613,9 +631,10 @@ pub enum MediaConfig {
     Vp9Config(Vp9Config),
     AacConfig(AacConfig),
     TtxtConfig(TtxtConfig),
+    OpusConfig(OpusConfig),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mp4Sample {
     pub start_time: u64,
     pub duration: u32,

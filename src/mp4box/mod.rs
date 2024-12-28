@@ -63,6 +63,7 @@ use std::io::{Read, Seek, SeekFrom, Write};
 use crate::*;
 
 pub(crate) mod avc1;
+pub(crate) mod btrt;
 pub(crate) mod co64;
 pub(crate) mod ctts;
 pub(crate) mod data;
@@ -85,6 +86,7 @@ pub(crate) mod moov;
 pub(crate) mod mp4a;
 pub(crate) mod mvex;
 pub(crate) mod mvhd;
+pub(crate) mod opus;
 pub(crate) mod smhd;
 pub(crate) mod stbl;
 pub(crate) mod stco;
@@ -107,6 +109,7 @@ pub(crate) mod vp09;
 pub(crate) mod vpcc;
 
 pub use avc1::Avc1Box;
+pub use btrt::BtrtBox;
 pub use co64::Co64Box;
 pub use ctts::CttsBox;
 pub use data::DataBox;
@@ -129,6 +132,8 @@ pub use moov::MoovBox;
 pub use mp4a::Mp4aBox;
 pub use mvex::MvexBox;
 pub use mvhd::MvhdBox;
+pub use opus::OpusBox;
+pub use opus::OpusSpecificBox;
 pub use smhd::SmhdBox;
 pub use stbl::StblBox;
 pub use stco::StcoBox;
@@ -191,6 +196,9 @@ boxtype! {
     MoovBox => 0x6d6f6f76,
     MvexBox => 0x6d766578,
     MehdBox => 0x6d656864,
+    BtrtBox => 0x62747274,
+    OpusBox => 0x4f707573,
+    OpusSpecificBox => 0x644f7073,
     TrexBox => 0x74726578,
     EmsgBox => 0x656d7367,
     MoofBox => 0x6d6f6f66,

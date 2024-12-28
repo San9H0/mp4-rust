@@ -48,6 +48,48 @@ impl TfhdBox {
         }
         sum
     }
+
+    pub fn set_base_data_offset(&mut self, base_data_offset: u64) {
+        if base_data_offset == 0 {
+            self.base_data_offset = None;
+            self.flags &= !TfhdBox::FLAG_BASE_DATA_OFFSET;
+            self.flags |= TfhdBox::FLAG_DEFAULT_BASE_IS_MOOF;
+            return;
+        }
+        self.base_data_offset = Some(base_data_offset);
+        self.flags |= TfhdBox::FLAG_BASE_DATA_OFFSET;
+        self.flags &= !TfhdBox::FLAG_DEFAULT_BASE_IS_MOOF;
+    }
+
+    pub fn set_default_sample_duration(&mut self, default_sample_duration: u32) {
+        if default_sample_duration == 0 {
+            self.default_sample_duration = None;
+            self.flags &= !TfhdBox::FLAG_DEFAULT_SAMPLE_DURATION;
+            return;
+        }
+        self.default_sample_duration = Some(default_sample_duration);
+        self.flags |= TfhdBox::FLAG_DEFAULT_SAMPLE_DURATION;
+    }
+
+    pub fn set_default_sample_size(&mut self, default_sample_size: u32) {
+        if default_sample_size == 0 {
+            self.default_sample_size = None;
+            self.flags &= !TfhdBox::FLAG_DEFAULT_SAMPLE_SIZE;
+            return;
+        }
+        self.default_sample_size = Some(default_sample_size);
+        self.flags |= TfhdBox::FLAG_DEFAULT_SAMPLE_SIZE;
+    }
+
+    pub fn set_default_sample_flags(&mut self, default_sample_flags: u32) {
+        if default_sample_flags == 0 {
+            self.default_sample_flags = None;
+            self.flags &= !TfhdBox::FLAG_DEFAULT_SAMPLE_FLAGS;
+            return;
+        }
+        self.default_sample_flags = Some(default_sample_flags);
+        self.flags |= TfhdBox::FLAG_DEFAULT_SAMPLE_FLAGS;
+    }
 }
 
 impl Mp4Box for TfhdBox {

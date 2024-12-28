@@ -7,16 +7,18 @@ use crate::mp4box::{mehd::MehdBox, trex::TrexBox};
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
 pub struct MvexBox {
     pub mehd: Option<MehdBox>,
-    pub trex: TrexBox,
+    pub trexs: Vec<TrexBox>,
 }
 
 impl MvexBox {
     pub fn get_type(&self) -> BoxType {
-        BoxType::MdiaBox
+        BoxType::MvexBox
     }
 
     pub fn get_size(&self) -> u64 {
-        HEADER_SIZE + self.mehd.as_ref().map(|x| x.box_size()).unwrap_or(0) + self.trex.box_size()
+        HEADER_SIZE
+            + self.mehd.as_ref().map(|x| x.box_size()).unwrap_or(0)
+            + self.trexs.iter().map(|x| x.box_size()).sum::<u64>()
     }
 }
 
@@ -44,7 +46,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for MvexBox {
         let start = box_start(reader)?;
 
         let mut mehd = None;
-        let mut trex = None;
+        let mut trexs = vec![];
 
         let mut current = reader.stream_position()?;
         let end = start + size;
@@ -63,7 +65,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for MvexBox {
                     mehd = Some(MehdBox::read_box(reader, s)?);
                 }
                 BoxType::TrexBox => {
-                    trex = Some(TrexBox::read_box(reader, s)?);
+                    trexs.push(TrexBox::read_box(reader, s)?);
                 }
                 _ => {
                     // XXX warn!()
@@ -74,16 +76,9 @@ impl<R: Read + Seek> ReadBox<&mut R> for MvexBox {
             current = reader.stream_position()?;
         }
 
-        if trex.is_none() {
-            return Err(Error::BoxNotFound(BoxType::TrexBox));
-        }
-
         skip_bytes_to(reader, start + size)?;
 
-        Ok(MvexBox {
-            mehd,
-            trex: trex.unwrap(),
-        })
+        Ok(MvexBox { mehd, trexs })
     }
 }
 
@@ -95,7 +90,9 @@ impl<W: Write> WriteBox<&mut W> for MvexBox {
         if let Some(mehd) = &self.mehd {
             mehd.write_box(writer)?;
         }
-        self.trex.write_box(writer)?;
+        for trex in &self.trexs {
+            trex.write_box(writer)?;
+        }
 
         Ok(size)
     }

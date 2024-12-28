@@ -1,4 +1,5 @@
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
+use opus::OpusBox;
 use serde::Serialize;
 use std::io::{Read, Seek, Write};
 
@@ -25,6 +26,9 @@ pub struct StsdBox {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tx3g: Option<Tx3gBox>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub opus: Option<OpusBox>,
 }
 
 impl StsdBox {
@@ -44,6 +48,8 @@ impl StsdBox {
             size += mp4a.box_size();
         } else if let Some(ref tx3g) = self.tx3g {
             size += tx3g.box_size();
+        } else if let Some(ref opus) = self.opus {
+            size += opus.box_size();
         }
         size
     }
@@ -81,6 +87,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
         let mut vp09 = None;
         let mut mp4a = None;
         let mut tx3g = None;
+        let mut opus = None;
 
         // Get box header.
         let header = BoxHeader::read(reader)?;
@@ -107,6 +114,9 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
             BoxType::Tx3gBox => {
                 tx3g = Some(Tx3gBox::read_box(reader, s)?);
             }
+            BoxType::OpusBox => {
+                opus = Some(OpusBox::read_box(reader, s)?);
+            }
             _ => {}
         }
 
@@ -120,6 +130,7 @@ impl<R: Read + Seek> ReadBox<&mut R> for StsdBox {
             vp09,
             mp4a,
             tx3g,
+            opus,
         })
     }
 }
@@ -143,6 +154,8 @@ impl<W: Write> WriteBox<&mut W> for StsdBox {
             mp4a.write_box(writer)?;
         } else if let Some(ref tx3g) = self.tx3g {
             tx3g.write_box(writer)?;
+        } else if let Some(ref opus) = self.opus {
+            opus.write_box(writer)?;
         }
 
         Ok(size)

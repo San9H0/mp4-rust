@@ -4,12 +4,27 @@ use std::io::{Read, Seek, Write};
 
 use crate::mp4box::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct VmhdBox {
     pub version: u8,
     pub flags: u32,
     pub graphics_mode: u16,
     pub op_color: RgbColor,
+}
+
+impl Default for VmhdBox {
+    fn default() -> Self {
+        Self {
+            version: 0,
+            flags: 1, // flags is should be just 1.
+            graphics_mode: 0,
+            op_color: RgbColor {
+                red: 0,
+                green: 0,
+                blue: 0,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]

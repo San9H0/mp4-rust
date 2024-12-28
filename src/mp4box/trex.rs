@@ -4,7 +4,7 @@ use std::io::{Read, Seek, Write};
 
 use crate::mp4box::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TrexBox {
     pub version: u8,
     pub flags: u32,
@@ -13,6 +13,20 @@ pub struct TrexBox {
     pub default_sample_duration: u32,
     pub default_sample_size: u32,
     pub default_sample_flags: u32,
+}
+
+impl Default for TrexBox {
+    fn default() -> Self {
+        TrexBox {
+            version: 0,
+            flags: 0,
+            track_id: 0,
+            default_sample_description_index: 1,
+            default_sample_duration: 0,
+            default_sample_size: 0,
+            default_sample_flags: 0,
+        }
+    }
 }
 
 impl TrexBox {

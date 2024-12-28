@@ -4,14 +4,34 @@ use std::io::{Read, Seek, Write};
 
 use crate::mp4box::*;
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct TfdtBox {
     pub version: u8,
     pub flags: u32,
     pub base_media_decode_time: u64,
 }
 
+impl Default for TfdtBox {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            flags: 0,
+            base_media_decode_time: 0,
+        }
+    }
+}
+
 impl TfdtBox {
+    pub fn new(base_media_decode_time: u64) -> Self {
+        let mut tfdt = Self {
+            version: 1,
+            flags: 0,
+            base_media_decode_time: 0,
+        };
+        tfdt.base_media_decode_time = base_media_decode_time;
+        tfdt
+    }
+
     pub fn get_type(&self) -> BoxType {
         BoxType::TfdtBox
     }

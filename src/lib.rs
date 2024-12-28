@@ -88,6 +88,9 @@ pub use reader::Mp4Reader;
 mod writer;
 pub use writer::{Mp4Config, Mp4Writer};
 
+mod fmp4;
+pub use fmp4::writer::Fmp4Writer;
+
 pub fn read_mp4(f: File) -> Result<Mp4Reader<BufReader<File>>> {
     let size = f.metadata()?.len();
     let reader = BufReader::new(f);

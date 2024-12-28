@@ -13,6 +13,15 @@ pub struct HdlrBox {
 }
 
 impl HdlrBox {
+    pub fn new(handler_type: FourCC, name: String) -> Self {
+        Self {
+            version: 0,
+            flags: 0,
+            handler_type,
+            name,
+        }
+    }
+
     pub fn get_type(&self) -> BoxType {
         BoxType::HdlrBox
     }
